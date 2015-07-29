@@ -1,6 +1,6 @@
 Package.describe({
     name: 'jalik:pagination',
-    version: '0.1.0',
+    version: '0.1.1',
     author: 'karl.stein.pro@gmail.com',
     summary: 'Pagination for subscription',
     homepage: 'https://github.com/jalik/jalik-pagination',
@@ -15,6 +15,7 @@ Package.onUse(function (api) {
     api.addFiles(['pagination.html'], 'client');
     api.addFiles(['pagination.js'], 'client');
     api.export('Pagination');
+    api.export('Paginations');
 });
 
 Package.onTest(function (api) {

@@ -1,8 +1,12 @@
-/**
- * Contains all pagination
- * @type {{}}
- */
-Paginations = {};
+var list = {};
+
+Paginations = {
+    buttons: {
+        first: '<<',
+        next: '>',
+        previous: '<'
+    }
+};
 
 /**
  * Pagination helper
@@ -41,7 +45,7 @@ Pagination = function (id, options) {
     }
 
     // Add to the list
-    Paginations[id] = this;
+    list[id] = this;
 };
 
 /**
@@ -188,43 +192,61 @@ Template.pagination.onCreated(function () {
     var tpl = this;
     var data = this.data;
 
-    if (!Paginations[data.id]) {
-        throw new Error('Paginations[' + data.id + '] not defined');
+    if (!list[data.id]) {
+        throw new Error('pagination "' + data.id + '" not defined');
     }
-    tpl.pagination = Paginations[data.id];
+    tpl.pagination = list[data.id];
 });
 
 Template.pagination.events({
     'click [name=current-page]': function (ev) {
         ev.preventDefault();
-        var page = parseInt(Paginations[this.id].selectPage());
+        var page = parseInt(list[this.id].selectPage());
         if (!isNaN(page)) {
-            Paginations[this.id].setPage(page);
+            list[this.id].setPage(page);
         }
     },
     'click [name=first-page]': function (ev) {
         ev.preventDefault();
-        Paginations[this.id].setPage(1);
+        list[this.id].setPage(1);
     },
     'click [name=next-page]': function (ev) {
         ev.preventDefault();
-        Paginations[this.id].next();
+        list[this.id].next();
     },
     'click [name=previous-page]': function (ev) {
         ev.preventDefault();
-        Paginations[this.id].previous();
+        list[this.id].previous();
     }
 });
 
 Template.pagination.helpers({
     disableNext: function () {
-        var count = Paginations[this.id].getCursor().count();
-        return count < Paginations[this.id].getLimit();
+        var count = list[this.id].getCursor().count();
+        return count < list[this.id].getLimit();
     },
     disablePrevious: function () {
-        return Paginations[this.id].getCurrentPage() <= 1;
+        return list[this.id].getCurrentPage() <= 1;
+    },
+    first: function () {
+        return this.first || Paginations.buttons.first;
+    },
+    isCustomMode: function () {
+        return this.mode === 'custom';
+    },
+    isDefaultMode: function () {
+        return this.mode === 'button' || this.mode === undefined || this.mode === null;
+    },
+    isImageMode: function () {
+        return this.mode === 'img';
+    },
+    next: function () {
+        return this.next || Paginations.buttons.next;
     },
     page: function () {
-        return Paginations[this.id].getCurrentPage();
+        return list[this.id].getCurrentPage();
+    },
+    previous: function () {
+        return this.previous || Paginations.buttons.previous;
     }
 });

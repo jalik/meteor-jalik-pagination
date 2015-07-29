@@ -53,6 +53,7 @@ Then on the client, you can setup the pagination.
             <li>User: {{username}}</li>
         {{else}}
         </ul>
+        
         <!-- Insert the pagination named userList -->
         {{> pagination id="userList"}}
     </div>
@@ -96,4 +97,23 @@ Template.users.helpers({
         return Template.instance().users();
     }
 });
+```
+
+### Customizing
+
+```js
+// Set the default text value for all pagination buttons
+Paginations.buttons = {
+    first : 'First',
+    next : 'Next',
+    Previous : 'Previous'
+};
+
+```html
+<template name="users">
+    <div>
+        <!-- Use custom mode to display elements as span and stylize them with CSS -->
+        {{> pagination id="userList" mode="custom"}}
+    </div>
+</template>
 ```
