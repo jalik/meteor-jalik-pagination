@@ -5,7 +5,8 @@ Package.describe({
     summary: 'Pagination for subscription',
     homepage: 'https://github.com/jalik/jalik-pagination',
     git: 'https://github.com/jalik/jalik-pagination.git',
-    documentation: 'README.md'
+    documentation: 'README.md',
+    license: 'MIT'
 });
 
 Package.onUse(function (api) {
