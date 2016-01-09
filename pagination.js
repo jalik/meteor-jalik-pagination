@@ -1,15 +1,81 @@
-var list = {};
+list = {};
 
 Paginations = {
+    /**
+     * Navigation buttons
+     */
     buttons: {
         first: '<<',
+        last: '>>',
         next: '>',
         previous: '<'
-    }
+    },
+    /**
+     * Pagination collection
+     */
+    counters: new Mongo.Collection('paginationCounters'),
+    /**
+     * Default mode to use
+     */
+    mode: 'button'
 };
 
+if (Meteor.isServer) {
+
+    Paginations.counter = function (context, cursor) {
+        var selector = cursor._cursorDescription.selector;
+        var hash = JSON.stringify(selector);
+        var count = 0;
+        var counterName = context._name;
+        var counters = Paginations.counters.find({name: counterName, selector: hash});
+        var collection = Paginations.counters;
+        var init = true;
+        var handle = cursor.observeChanges({
+            added: function (id) {
+                count += 1;
+                if (!init) {
+                    collection.upsert({name: counterName, selector: hash}, {
+                        $set: {count: count, updatedAt: new Date()}
+                    });
+                }
+            },
+            removed: function (id) {
+                count -= 1;
+                if (!init) {
+                    collection.upsert({name: counterName, selector: hash}, {
+                        $set: {count: count, updatedAt: new Date()}
+                    });
+                }
+            }
+        });
+
+        // Set the first count
+        collection.upsert({name: counterName, selector: hash}, {
+            $set: {count: cursor.count(), updatedAt: new Date()}
+        });
+
+        init = false;
+        //self.added(collectionName, counterName, {count: count});
+        //self.ready();
+        // Stop observing the cursor when client unsubs.
+        // Stopping a subscription automatically takes
+        // care of sending the client any removed messages.
+        context.onStop(function () {
+            handle.stop();
+        });
+        return counters;
+    }
+}
+
+if (Meteor.isClient) {
+    Paginations.count = function (name) {
+        var counter = Paginations.counters.findOne({name: name});
+        return counter ? counter.count : 0;
+    };
+}
+
 /**
- * Pagination helper
+ * Pagination manager
  * @param id
  * @param options
  * @constructor
@@ -17,6 +83,7 @@ Paginations = {
 Pagination = function (id, options) {
     // Set default options
     options = _.extend({
+        counter: null,
         cursor: null,
         limit: 5,
         onChanged: null,
@@ -24,34 +91,53 @@ Pagination = function (id, options) {
     }, options);
 
     // Check options
+    if (options.counter !== null && typeof options.counter !== 'string') {
+        throw new Error('counter must be a string');
+    }
     if (!options.cursor) {
         throw new Error('cursor not defined');
     }
-
-    if (typeof options.onChanged === 'function') {
-        this.onChanged = options.onChanged;
+    if (options.onChanged !== null && typeof options.onChanged !== 'function') {
+        throw new Error('onChanged must be a function');
     }
 
     // Public attributes
     this.id = id;
     this.cursor = options.cursor;
+    this.counter = options.counter;
+    this.onChanged = options.onChanged;
+    list[id] = this;
 
-    if (isNaN(this.getLimit())) {
+    if (!isNaN(options.limit)) {
         this.setLimit(options.limit);
     }
-
-    if (isNaN(this.getSkip())) {
+    if (!isNaN(options.skip)) {
         this.setSkip(options.skip);
     }
 
-    // Add to the list
-    list[id] = this;
+    // todo change de page si l'offset dépasse le count en cas de suppression d'éléments
+};
+
+/**
+ * Returns the current pagination count
+ * @return {number}
+ */
+Pagination.prototype.count = function () {
+    return this.cursor.count();
+};
+
+/**
+ * Go to the first page
+ * @return {number}
+ */
+Pagination.prototype.first = function () {
+    return this.setPage(1);
 };
 
 /**
  * Returns the pagination session value
  * @param name
- * @return {any}
+ * @return {*}
  */
 Pagination.prototype.get = function (name) {
     return Session.get('pagination.' + this.id + '.' + name);
@@ -74,11 +160,11 @@ Pagination.prototype.getCursor = function () {
 };
 
 /**
- * Returns the pagination ID
+ * Returns the last page
  * @return {number}
  */
-Pagination.prototype.getName = function () {
-    return this.id;
+Pagination.prototype.getLastPage = function () {
+    return this.getPageCount();
 };
 
 /**
@@ -94,7 +180,15 @@ Pagination.prototype.getLimit = function () {
  * @return {number}
  */
 Pagination.prototype.getLoaded = function () {
-    return this.cursor.count();
+    return this.count();
+};
+
+/**
+ * Returns the pagination ID
+ * @return {number}
+ */
+Pagination.prototype.getName = function () {
+    return this.id;
 };
 
 /**
@@ -103,6 +197,14 @@ Pagination.prototype.getLoaded = function () {
  */
 Pagination.prototype.getNextPage = function () {
     return this.getCurrentPage() + 1;
+};
+
+/**
+ * Returns the last page
+ * @return {number}
+ */
+Pagination.prototype.getPageCount = function () {
+    return Math.ceil(this.getTotal() / this.getLimit());
 };
 
 /**
@@ -118,11 +220,27 @@ Pagination.prototype.getPreviousPage = function () {
  * @return {number}
  */
 Pagination.prototype.getSkip = function () {
-    return parseInt(this.get('skip'));
+    return this.get('skip');
 };
 
 /**
- * Go to next page
+ * Returns the total number of elements
+ * @return {number}
+ */
+Pagination.prototype.getTotal = function () {
+    return Paginations.count(this.counter || this.id);
+};
+
+/**
+ * Go to the last page
+ * @return {number}
+ */
+Pagination.prototype.last = function () {
+    return this.setPage(this.getLastPage());
+};
+
+/**
+ * Go to the next page
  * @return {number}
  */
 Pagination.prototype.next = function () {
@@ -130,7 +248,7 @@ Pagination.prototype.next = function () {
 };
 
 /**
- * Go to previous page
+ * Go to the previous page
  * @return {number}
  */
 Pagination.prototype.previous = function () {
@@ -151,7 +269,7 @@ Pagination.prototype.set = function (name, value) {
  * @return {number}
  */
 Pagination.prototype.selectPage = function () {
-    return parseInt(window.prompt(i18n("Numéro de page")));
+    return parseInt(window.prompt(i18n.t("Numéro de page")));
 };
 
 /**
@@ -170,8 +288,9 @@ Pagination.prototype.setLimit = function (limit) {
 Pagination.prototype.setPage = function (page) {
     check(page, Number);
     page = parseInt(page);
+    page = page > this.getPageCount() ? this.getLastPage() : page;
     page = page <= 0 ? 1 : page;
-    this.set('skip', (page - 1) * this.getLimit());
+    this.setSkip((page - 1) * this.getLimit());
 
     if (typeof this.onChanged === 'function') {
         this.onChanged.call(this);
@@ -184,69 +303,8 @@ Pagination.prototype.setPage = function (page) {
  */
 Pagination.prototype.setSkip = function (skip) {
     check(skip, Number);
+    if (skip < 0) {
+        skip = 0;
+    }
     this.set('skip', parseInt(skip));
 };
-
-
-Template.pagination.onCreated(function () {
-    var tpl = this;
-    var data = this.data;
-
-    if (!list[data.id]) {
-        throw new Error('pagination "' + data.id + '" not defined');
-    }
-    tpl.pagination = list[data.id];
-});
-
-Template.pagination.events({
-    'click [name=current-page]': function (ev) {
-        ev.preventDefault();
-        var page = parseInt(list[this.id].selectPage());
-        if (!isNaN(page)) {
-            list[this.id].setPage(page);
-        }
-    },
-    'click [name=first-page]': function (ev) {
-        ev.preventDefault();
-        list[this.id].setPage(1);
-    },
-    'click [name=next-page]': function (ev) {
-        ev.preventDefault();
-        list[this.id].next();
-    },
-    'click [name=previous-page]': function (ev) {
-        ev.preventDefault();
-        list[this.id].previous();
-    }
-});
-
-Template.pagination.helpers({
-    disableNext: function () {
-        var count = list[this.id].getCursor().count();
-        return count < list[this.id].getLimit();
-    },
-    disablePrevious: function () {
-        return list[this.id].getCurrentPage() <= 1;
-    },
-    first: function () {
-        return this.first || Paginations.buttons.first;
-    },
-    isCustomMode: function () {
-        return this.mode === 'custom';
-    },
-    isDefaultMode: function () {
-        return this.mode === 'button' || this.mode === undefined || this.mode === null;
-    },
-    isImageMode: function () {
-        return this.mode === 'img';
-    },
-    next: function () {
-        return this.next || Paginations.buttons.next;
-    },
-    page: function () {
-        return list[this.id].getCurrentPage();
-    },
-    previous: function () {
-        return this.previous || Paginations.buttons.previous;
-    }
-});

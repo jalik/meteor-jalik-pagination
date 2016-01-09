@@ -11,16 +11,18 @@ Package.describe({
 
 Package.onUse(function (api) {
     api.versionsFrom('1.1.0.2');
-    api.use(['underscore', 'check', 'session'], 'client');
-    api.use(['minimongo', 'mongo-livedata', 'templating', 'reactive-var'], 'client');
-    api.addFiles(['pagination.html'], 'client');
-    api.addFiles(['pagination.js'], 'client');
+    api.use('check');
+    api.use('jalik:i18n');
+    api.use('mongo');
+    api.use('reactive-var');
+    api.use('session', 'client');
+    api.use('templating', 'client');
+    api.use('underscore');
+
+    api.addFiles('templates.html', 'client');
+    api.addFiles('templates.js', 'client');
+    api.addFiles('pagination.js');
+
     api.export('Pagination');
     api.export('Paginations');
-});
-
-Package.onTest(function (api) {
-    api.use('tinytest');
-    api.use('jalik:pagination');
-    api.addFiles('pagination-tests.js');
 });
