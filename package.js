@@ -12,7 +12,7 @@ Package.describe({
 Package.onUse(function (api) {
     api.versionsFrom('1.1.0.2');
     api.use('check');
-    api.use('jalik:i18n');
+    api.use('jalik:i18n@0.1.1');
     api.use('mongo');
     api.use('reactive-var');
     api.use('session', 'client');
